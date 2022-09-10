@@ -35,6 +35,12 @@ real_wayland=${real_xdg_runtime_dir}/${WAYLAND_DISPLAY:-wayland-0}
 wait_for "${real_xdg_runtime_dir}"
 wait_for "${real_wayland}"
 
+env=$(env)
+logger "wayland-launch: env is: $env"
+logger "wayland-launch: XDG_RUNTIME_DIR: $XDG_RUNTIME_DIR"
+logger "wayland-launch: real_xdg_runtime_dir: $real_xdg_runtime_dir"
+logger "wayland-launch: real_wayland: $real_wayland"
+
 mkdir -p "$XDG_RUNTIME_DIR" -m 700
 ln -sf "${real_wayland}" "$XDG_RUNTIME_DIR"
 ln -sf "${real_wayland}.lock" "$XDG_RUNTIME_DIR"
