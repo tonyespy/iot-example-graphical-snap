@@ -5,7 +5,7 @@ description: IoT example using Flutter
 confinement: strict
 compression: lzo
 grade: stable
-base: core20
+base: core22
 
 apps:
   iot-example-graphical-snap:
@@ -22,18 +22,15 @@ apps:
       XDG_DATA_DIRS: $SNAP/usr/share
       GDK_GL: gles
 
-# This is one of four snippets that relate to providing the userspace graphics needed by your application.
-# You can treat this as "magic" so long as you don't need to make changes.
-# On the Mir discourse forum there's a lot more detail on [the graphics-core20 Snap interface](https://discourse.ubuntu.com/t/the-graphics-core20-snap-interface/23000) and it's use.
-plugs:
-  graphics-core20:
-    interface: content
-    target: $SNAP/graphics
-    default-provider: mesa-core20
-
 environment:
   # This is one of four snippets that relate to providing the userspace graphics needed by your application.
-  LD_LIBRARY_PATH:    $SNAP/graphics/lib
+  #
+  # NOTE - I had to resort to hard-coding this path when logged from wayland-launch
+  # it was set to simply "/var/lib/iot-example-graphical/snap/graphics/dir", none of
+  # the other directories where added. The path used here is what is set when the
+  # core20 version of this snap is built & run.
+  LD_LIBRARY_PATH: /var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void:$SNAP/graphics/lib:$SNAP/usr/lib:$SNAP/usr/lib/x86_64-linux-gnu
+  # LD_LIBRARY_PATH: $SNAP/graphics/lib
   LIBGL_DRIVERS_PATH: $SNAP/graphics/dri
   LIBVA_DRIVERS_PATH: $SNAP/graphics/dri
   __EGL_VENDOR_LIBRARY_DIRS: $SNAP/graphics/glvnd/egl_vendor.d
@@ -108,8 +105,9 @@ parts:
       - flutter/latest/stable
     build-environment:
       - C_INCLUDE_PATH: /snap/flutter/current/usr/include
-      - LD_LIBRARY_PATH: $LD_LIBRARY_PATH:/snap/flutter/current/usr/lib/$SNAPCRAFT_ARCH_TRIPLET
-      - PKG_CONFIG_PATH: $PKG_CONFIG_PATH:/snap/flutter/current/usr/lib/$SNAPCRAFT_ARCH_TRIPLET/pkgconfig
+      # These two PATHS were modified because of bug in snapcraft 7 (lp: #1978859)
+      - LD_LIBRARY_PATH: /snap/flutter/current/usr/lib/$SNAPCRAFT_ARCH_TRIPLET
+      - PKG_CONFIG_PATH: /snap/flutter/current/usr/lib/$SNAPCRAFT_ARCH_TRIPLET/pkgconfig
       - XDG_DATA_DIRS: /snap/flutter/current/usr/share:$XDG_DATA_DIRS
     override-build: |
       set -eux
@@ -136,6 +134,26 @@ parts:
       mkdir -p ${SNAPCRAFT_PART_INSTALL}/usr/lib/${SNAPCRAFT_ARCH_TRIPLET}/gtk-3.0/3.0.0/
       /usr/lib/${SNAPCRAFT_ARCH_TRIPLET}/libgtk-3-0/gtk-query-immodules-3.0 > ${SNAPCRAFT_PART_INSTALL}/usr/lib/${SNAPCRAFT_ARCH_TRIPLET}/gtk-3.0/3.0.0/immodules.cache
 
+  mesa:
+    plugin: nil
+    stage-packages:
+      - libgl1-mesa-dri
+      - va-driver-all
+      - libegl1
+      - libgles2
+    organize:
+      'usr/lib/${SNAPCRAFT_ARCH_TRIPLET}/dri/*': graphics/dri/
+      'usr/lib/${SNAPCRAFT_ARCH_TRIPLET}/*.so*': graphics/lib/
+      'usr/share/glvnd': graphics/glvnd/
+      'usr/share/libdrm': graphics/libdrm/
+      'usr/share/drirc.d/': graphics/drirc.d/
+    prime:
+      - graphics/lib
+      - graphics/dri
+      - graphics/glvnd
+      - graphics/libdrm
+      - graphics/drirc.d
+
   # Some utility scripts for setting up the Wayland environment
   wayland-launch:
     plugin: dump
@@ -143,36 +161,12 @@ parts:
     override-build: |
       # The plugs needed to run Wayland. (wayland-launch checks them, setup.sh connects them)
       # You may add further plugs here if you want these options
-      PLUGS="opengl wayland graphics-core20"
+      PLUGS="opengl wayland"
       sed --in-place "s/%PLUGS%/$PLUGS/g" $SNAPCRAFT_PART_BUILD/bin/wayland-launch
       sed --in-place "s/%PLUGS%/$PLUGS/g" $SNAPCRAFT_PART_BUILD/bin/setup.sh
       snapcraftctl build
     stage-packages:
       - inotify-tools
-
-  # This is one of four snippets that relate to providing the userspace graphics needed by your application.
-  # This ensures that your snap doesn't contain its own copy of the userspace drivers
-  cleanup:
-    after:
-      - gsettings+pixbuf
-      - flutterdemo
-      - immodules
-      - wayland-launch
-    plugin: nil
-    build-snaps: [ mesa-core20 ]
-    override-prime: |
-      set -eux
-      cd /snap/mesa-core20/current/egl/lib
-      find . -type f,l -exec rm -f $SNAPCRAFT_PRIME/usr/lib/${SNAPCRAFT_ARCH_TRIPLET}/{} \;
-      rm -fr "$SNAPCRAFT_PRIME/usr/lib/${SNAPCRAFT_ARCH_TRIPLET}/dri"
-      for CRUFT in bug drirc.d glvnd libdrm lintian man; do
-        rm -rf "$SNAPCRAFT_PRIME/usr/share/$CRUFT"
-      done
-      for CRUFT in alsa bash-completion dbus-1 help kconf_update kservices5 libinput locale openal pkgconfig \
-                   applications doc kf5 kservicetypes5 libthai metainfo perl qlogging-categories5 thumbnailers xml \
-                   apport config.kcfg doc-base GConf gnupg info knotifications5 kxmlgui5 libwacom themes sounds ; do
-        rm -rf "$SNAPCRAFT_PRIME/usr/share/$CRUFT"
-      done
 
 architectures:
   - build-on: amd64
