@@ -70,6 +70,26 @@ layout:
     bind: $SNAP/etc/gtk-3.0
 
 parts:
+  flutter-git:
+    source: https://github.com/flutter/flutter.git
+    source-tag: 3.0.5
+    plugin: nil
+    override-build: |
+      mkdir -p $CRAFT_PART_INSTALL/usr/bin
+      mkdir -p $CRAFT_PART_INSTALL/usr/libexec
+      cp -r $CRAFT_PART_SRC $CRAFT_PART_INSTALL/usr/libexec/flutter
+      ln -s $CRAFT_PART_INSTALL/usr/libexec/flutter/bin/flutter $CRAFT_PART_INSTALL/usr/bin/flutter
+    build-packages:
+      - clang
+      - cmake
+      - curl
+      - ninja-build
+      - unzip
+      - xz-utils
+      - zip
+    override-prime:
+      rm -r $CRAFT_PART_INSTALL
+
   # Flutter applications are based on GTK which needs SVG, Gsettings and GLib libraries it needs.
   # The `build-packages`, `override-build` and `override-prime` stanzas are there to incorporate the mime database
   # and pixbuf loaders into the snap.
@@ -101,14 +121,7 @@ parts:
   flutterdemo:
     plugin: nil
     source: flutterdemo
-    build-snaps:
-      - flutter/latest/stable
-    build-environment:
-      - C_INCLUDE_PATH: /snap/flutter/current/usr/include
-      # These two PATHS were modified because of bug in snapcraft 7 (lp: #1978859)
-      - LD_LIBRARY_PATH: /snap/flutter/current/usr/lib/$SNAPCRAFT_ARCH_TRIPLET
-      - PKG_CONFIG_PATH: /snap/flutter/current/usr/lib/$SNAPCRAFT_ARCH_TRIPLET/pkgconfig
-      - XDG_DATA_DIRS: /snap/flutter/current/usr/share:$XDG_DATA_DIRS
+    after: [ flutter-git ]
     override-build: |
       set -eux
       mkdir -p $SNAPCRAFT_PART_INSTALL/bin/lib
